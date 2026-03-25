@@ -2,6 +2,7 @@ from faster_whisper import WhisperModel
 import threading
 import queue
 import time
+import toml
 import os
 from datetime import datetime
 
@@ -10,7 +11,18 @@ class TranscriptionEngine:
     Consumes audio chunks from the queue and transcribes them using faster-whisper.
     Appends the results to a local file with timestamps.
     """
-    def __init__(self, model_size="base", device="cpu"):
+    def __init__(self, config_path="config.toml", device="cpu"):
+        # Load configuration
+        if os.path.exists(config_path):
+            config = toml.load(config_path)
+            model_size = config.get("transcription", {}).get("model_size", "base")
+            self.base_dir = config.get("transcription", {}).get("output_dir", "transcriptions")
+            self.sample_rate = config.get("audio", {}).get("sample_rate", 16000)
+        else:
+            model_size = "base"
+            self.base_dir = "transcriptions"
+            self.sample_rate = 16000
+            
         # Load the model (offline after initial download)
         self.model = WhisperModel(model_size, device=device, compute_type="int8")
         self.is_running = False
@@ -27,10 +39,9 @@ class TranscriptionEngine:
         self.total_processed_seconds = 0.0
         
         # 1. Prepare directory structure
-        # Root: transcriptions/, Subfolder: YYYY-MM-DD
-        base_dir = "transcriptions"
+        # Root from config, Subfolder: YYYY-MM-DD
         date_folder = datetime.now().strftime("%Y-%m-%d")
-        output_dir = os.path.join(base_dir, date_folder)
+        output_dir = os.path.join(self.base_dir, date_folder)
         
         # Create directories if they don't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -82,8 +93,7 @@ class TranscriptionEngine:
                     f.flush() # Ensure it's written immediately
 
             # Update total processed seconds based on chunk length
-            # Assuming sample rate is 16000 as per AudioEngine default
-            self.total_processed_seconds += len(audio_data) / 16000.0
+            self.total_processed_seconds += len(audio_data) / float(self.sample_rate)
             self.audio_queue.task_done()
 
     def stop(self):

@@ -81,18 +81,27 @@ In the app's dropdown, select **CABLE Output (VB-Audio Virtual Cable)** to captu
 ## Usage
 
 ### 1. Set System Output
-Before starting your meeting, click the Volume icon in your macOS menu bar and set your output to **Overhear - Listen**.
+Before starting your meeting, click the Volume icon in your macOS menu bar (or Windows Sound Settings) and set your output to your virtual loopback device (e.g., **Overhear - Listen** on Mac or **VB-Cable** on Windows).
 
 ### 2. Launch the Application
-Activate the virtual environment and run the main script:
+
+-   **macOS**: Double-click the `launch.command` file in the project folder.
+-   **Windows**: Double-click the `launch.bat` file in the project folder.
+
+Alternatively, you can run it from the terminal:
 ```bash
+# macOS/Linux
 source .venv/bin/activate
+python3 main.py
+
+# Windows
+.\.venv\Scripts\Activate.ps1
 python main.py
 ```
 
 ### 3. Start Transcribing
 1.  **Enter Meeting Name**: e.g., "Weekly Sync".
-2.  **Select Audio Source**: Choose `Overhear - Aggregate` from the dropdown menu.
+2.  **Select Audio Source**: Choose your aggregate/loopback device from the dropdown menu.
 3.  **Click Record**: The app will begin capturing and transcribing.
 4.  **Click Stop**: The transcript will be finalized and saved.
 
@@ -107,8 +116,23 @@ Transcripts are automatically saved in the `transcriptions/` directory, organize
 
 ## Configuration
 
-You can adjust the transcription accuracy by modifying `main.py`:
--   **Model Size**: Change `self.transcriber = TranscriptionEngine(model_size="base")` to `"tiny"`, `"small"`, `"medium"`, or `"large-v3"`. Note that larger models require more RAM/GPU.
+You can customize the application's behavior by editing the `config.toml` file:
+
+```toml
+[transcription]
+# Whisper model size: tiny, base, small, medium, large-v3
+model_size = "base"
+
+# Output directory for transcriptions
+output_dir = "transcriptions"
+
+[audio]
+# Sampling rate (default is 16000)
+sample_rate = 16000
+
+# Duration of each audio chunk in seconds
+chunk_duration = 30
+```
 
 ## Troubleshooting
 

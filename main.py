@@ -21,7 +21,7 @@ class TranscriptionApp(ctk.CTk):
 
         # Initialize Engines
         self.audio_engine = AudioEngine()
-        self.transcriber = TranscriptionEngine(model_size="base") # Use 'large-v3' for high accuracy if hardware permits
+        self.transcriber = TranscriptionEngine() # Configuration loaded from config.toml
 
         self._build_ui()
         self._update_volume_indicator() # Start UI polling for volume

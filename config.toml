@@ -1,0 +1,15 @@
+# Overhear Configuration
+
+[transcription]
+# Whisper model size: tiny, base, small, medium, large-v3
+model_size = "base"
+
+# Output directory for transcriptions
+output_dir = "transcriptions"
+
+[audio]
+# Sampling rate for recording (16000 is default for Whisper)
+sample_rate = 16000
+
+# Duration of each audio chunk in seconds
+chunk_duration = 30

@@ -4,15 +4,24 @@ import threading
 import queue
 import time
 import platform
+import toml
+import os
 
 class AudioEngine:
     """
     Handles audio capture from multiple devices (Mic + System Output).
     Streams audio in chunks to a queue for the transcription engine.
     """
-    def __init__(self, sample_rate=16000, chunk_duration=30):
-        self.sample_rate = sample_rate
-        self.chunk_duration = chunk_duration # Seconds per transcription batch
+    def __init__(self, config_path="config.toml"):
+        # Load configuration
+        if os.path.exists(config_path):
+            config = toml.load(config_path)
+            self.sample_rate = config.get("audio", {}).get("sample_rate", 16000)
+            self.chunk_duration = config.get("audio", {}).get("chunk_duration", 30)
+        else:
+            self.sample_rate = 16000
+            self.chunk_duration = 30
+            
         self.audio_queue = queue.Queue()
         self.is_recording = False
         self.is_paused = False
