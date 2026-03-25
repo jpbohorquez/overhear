@@ -1,0 +1,24 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+.env/
+
+# Python Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# App Specific Data
+transcriptions/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Project local config
+.vscode/
+.idea/
+
+.gemini/
+gha-creds-*.json
