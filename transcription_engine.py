@@ -16,6 +16,7 @@ class TranscriptionEngine:
         self.is_running = False
         self.current_file = None
         self.start_time = None
+        self.total_processed_seconds = 0.0
         
     def start(self, audio_queue, meeting_name):
         """Starts the transcription loop in a background thread."""
@@ -23,6 +24,7 @@ class TranscriptionEngine:
         self.audio_queue = audio_queue
         self.meeting_name = meeting_name
         self.start_time = time.time()
+        self.total_processed_seconds = 0.0
         
         # 1. Prepare directory structure
         # Root: transcriptions/, Subfolder: YYYY-MM-DD
@@ -45,6 +47,13 @@ class TranscriptionEngine:
         self.thread = threading.Thread(target=self._process_queue, daemon=True)
         self.thread.start()
 
+    def _format_timestamp(self, seconds):
+        """Formats seconds into HH:MM:SS string."""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
     def _process_queue(self):
         """Worker loop for transcription."""
         print(f"Transcription engine started for {self.filename}")
@@ -63,13 +72,18 @@ class TranscriptionEngine:
             with open(self.filename, "a") as f:
                 for segment in segments:
                     # Calculate timestamp relative to meeting start
-                    ts_start = segment.start
-                    ts_end = segment.end
-                    line = f"[{ts_start:05.2f} - {ts_end:05.2f}] {segment.text}\n"
+                    ts_start = segment.start + self.total_processed_seconds
+                    ts_end = segment.end + self.total_processed_seconds
+                    
+                    time_str = f"[{self._format_timestamp(ts_start)} - {self._format_timestamp(ts_end)}]"
+                    line = f"{time_str} {segment.text}\n"
                     print(f"Transcribed: {line.strip()}")
                     f.write(line)
                     f.flush() # Ensure it's written immediately
 
+            # Update total processed seconds based on chunk length
+            # Assuming sample rate is 16000 as per AudioEngine default
+            self.total_processed_seconds += len(audio_data) / 16000.0
             self.audio_queue.task_done()
 
     def stop(self):
