@@ -1,9 +1,15 @@
 import os
+import logging
 import toml
 import threading
 import litellm
 from typing import Optional, List, Dict
 from datetime import datetime
+
+# Silence a known litellm bug where TranscriptionCreateParams.__annotations__
+# raises AttributeError during internal logging, flooding stderr with noise.
+logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
+litellm.suppress_debug_info = True
 
 class Summarizer:
     """
@@ -77,6 +83,49 @@ class Summarizer:
                 pass
         return val
 
+    def fetch_live_models(self, provider: str, api_key: str) -> List[str]:
+        """Fetch models actually available for the given provider and API key."""
+        import requests
+        provider = provider.upper()
+
+        if provider == "GEMINI":
+            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = []
+            for m in data.get("models", []):
+                name = m.get("name", "")          # "models/gemini-2.5-flash"
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" in methods:
+                    short = name.removeprefix("models/")
+                    models.append(f"gemini/{short}")
+            return sorted(models)
+
+        elif provider == "OPENAI":
+            url = "https://api.openai.com/v1/models"
+            headers = {"Authorization": f"Bearer {api_key}"}
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            chat_prefixes = ("gpt-4", "gpt-3.5", "o1", "o3", "o4")
+            models = [
+                f"openai/{m['id']}" for m in data.get("data", [])
+                if any(m["id"].startswith(p) for p in chat_prefixes)
+            ]
+            return sorted(models)
+
+        elif provider == "ANTHROPIC":
+            url = "https://api.anthropic.com/v1/models"
+            headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = [f"anthropic/{m['id']}" for m in data.get("data", [])]
+            return sorted(models)
+
+        return []
+
     def get_available_models(self, provider_prefix: str) -> List[str]:
         """Dynamically fetch models for a given provider using LiteLLM."""
         try:
@@ -123,10 +172,18 @@ class Summarizer:
 
             # Prepare Messages (Standard OpenAI-style format used by LiteLLM)
             prompt = custom_prompt if custom_prompt else self.system_prompt
-            messages = [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Please summarize the following meeting transcript:\n\n{content}"}
-            ]
+            TRANSCRIPT_PLACEHOLDER = "$transcript$"
+            if TRANSCRIPT_PLACEHOLDER in prompt:
+                # Inline the transcript where the prompt tells us to put it
+                messages = [
+                    {"role": "user", "content": prompt.replace(TRANSCRIPT_PLACEHOLDER, content)}
+                ]
+            else:
+                # No placeholder: use system + user message format
+                messages = [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"Please summarize the following meeting transcript:\n\n{content}"}
+                ]
 
             # LiteLLM completion (Latest syntax)
             response = litellm.completion(

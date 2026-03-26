@@ -2,6 +2,7 @@ import customtkinter as ctk
 import threading
 import time
 import os
+from tkinter import filedialog
 from audio_engine import AudioEngine
 from transcription_engine import TranscriptionEngine
 from summarizer import Summarizer
@@ -108,29 +109,41 @@ class TranscriptionApp(ctk.CTk):
         # 1. Transcript File Selection
         self.file_label = ctk.CTkLabel(tab, text="Select Transcript:", font=("Inter", 14, "bold"))
         self.file_label.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
-        
+
+        file_row = ctk.CTkFrame(tab, fg_color="transparent")
+        file_row.grid(row=1, column=0, padx=20, pady=(0, 5), sticky="ew")
+        file_row.grid_columnconfigure(0, weight=1)
+
         self.transcript_file_var = ctk.StringVar()
-        self.transcript_file_entry = ctk.CTkEntry(tab, textvariable=self.transcript_file_var, width=400)
-        self.transcript_file_entry.grid(row=1, column=0, padx=20, pady=(0, 5), sticky="ew")
-        
+        self.transcript_file_entry = ctk.CTkEntry(file_row, textvariable=self.transcript_file_var)
+        self.transcript_file_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        self.browse_btn = ctk.CTkButton(file_row, text="Browse", width=80, command=self._browse_transcript)
+        self.browse_btn.grid(row=0, column=1)
+
         self.refresh_btn = ctk.CTkButton(tab, text="Use Latest Transcript", command=self._refresh_latest_transcript)
         self.refresh_btn.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="w")
 
         # 2. Summary Prompt Editor
         self.prompt_label = ctk.CTkLabel(tab, text="Summary Prompt:", font=("Inter", 14, "bold"))
         self.prompt_label.grid(row=3, column=0, padx=20, pady=(10, 5), sticky="w")
-        
+
         self.prompt_text = ctk.CTkTextbox(tab, height=150, width=400)
         self.prompt_text.grid(row=4, column=0, padx=20, pady=(0, 20), sticky="nsew")
         self.prompt_text.insert("1.0", self.summarizer.system_prompt)
 
         # 3. Generate Button
         self.sum_btn = ctk.CTkButton(tab, text="Generate Summary", command=self.generate_summary)
-        self.sum_btn.grid(row=5, column=0, padx=20, pady=10)
+        self.sum_btn.grid(row=5, column=0, padx=20, pady=(10, 4))
 
-        # 4. Status/Loading
+        # 4. Progress bar (indeterminate spinner, hidden until a call is running)
+        self.sum_progress = ctk.CTkProgressBar(tab, mode="indeterminate", width=400)
+        self.sum_progress.grid(row=6, column=0, padx=20, pady=(0, 4), sticky="ew")
+        self.sum_progress.grid_remove()
+
+        # 5. Status label
         self.sum_status_label = ctk.CTkLabel(tab, text="", font=("Inter", 12, "italic"))
-        self.sum_status_label.grid(row=6, column=0, padx=20, pady=10)
+        self.sum_status_label.grid(row=7, column=0, padx=20, pady=(0, 10))
 
     def _build_settings_tab(self):
         tab = self.tabview.tab("Settings")
@@ -151,40 +164,99 @@ class TranscriptionApp(ctk.CTk):
         self.key_entry.grid(row=3, column=0, padx=20, pady=(0, 10), sticky="ew")
         
         # 2. Model Selection
-        self.model_label = ctk.CTkLabel(tab, text="LLM Model (LiteLLM Format):", font=("Inter", 14, "bold"))
-        self.model_label.grid(row=4, column=0, padx=20, pady=(10, 5), sticky="w")
-        
-        self.model_var = ctk.StringVar(value=self.summarizer.model_name)
-        self.model_menu = ctk.CTkOptionMenu(tab, values=[
-            "gemini/gemini-1.5-flash", 
-            "gemini/gemini-1.5-pro", 
-            "openai/gpt-4o", 
-            "openai/gpt-4o-mini",
-            "anthropic/claude-3-5-sonnet-20240620"
-        ], variable=self.model_var)
-        self.model_menu.grid(row=5, column=0, padx=20, pady=(0, 20), sticky="w")
+        model_header = ctk.CTkFrame(tab, fg_color="transparent")
+        model_header.grid(row=4, column=0, padx=20, pady=(10, 0), sticky="ew")
+        model_header.grid_columnconfigure(0, weight=1)
 
-        self._on_provider_change("GEMINI") # Load initial key and models
+        self.model_label = ctk.CTkLabel(model_header, text="LLM Model:", font=("Inter", 14, "bold"))
+        self.model_label.grid(row=0, column=0, sticky="w")
+
+        self.refresh_models_btn = ctk.CTkButton(
+            model_header, text="Refresh", width=80, height=26,
+            command=self._on_refresh_models_clicked
+        )
+        self.refresh_models_btn.grid(row=0, column=1, sticky="e")
+
+        self.model_var = ctk.StringVar(value=self.summarizer.model_name)
+        self.model_menu = ctk.CTkOptionMenu(tab, values=[self.summarizer.model_name], variable=self.model_var, width=400)
+        self.model_menu.grid(row=5, column=0, padx=20, pady=(4, 0), sticky="ew")
+
+        self.model_status_label = ctk.CTkLabel(tab, text="", font=("Inter", 11), text_color="gray")
+        self.model_status_label.grid(row=6, column=0, padx=20, pady=(2, 10), sticky="w")
+
+        self._on_provider_change("GEMINI")  # Load initial key and models
 
         # 3. Save Settings
         self.save_settings_btn = ctk.CTkButton(tab, text="Save Settings", command=self.save_settings)
-        self.save_settings_btn.grid(row=6, column=0, padx=20, pady=20)
+        self.save_settings_btn.grid(row=7, column=0, padx=20, pady=(10, 20))
 
     def _on_provider_change(self, provider):
-        """Update key entry and model menu when provider changes."""
+        """Update key entry and trigger async model fetch when provider changes."""
         self.key_entry.delete(0, "end")
         existing_key = self.summarizer.get_api_key(provider)
         if existing_key:
             self.key_entry.insert(0, existing_key)
-        
-        # Update model dropdown dynamically
-        models = self.summarizer.get_available_models(provider)
-        if models:
-            self.model_menu.configure(values=models)
-            # Set to the first one if current is not in list
-            current_model = self.model_var.get()
-            if current_model not in models:
-                self.model_var.set(models[0])
+            self._load_models_async(provider, existing_key)
+        else:
+            self.model_menu.configure(state="normal", values=["— enter API key first —"])
+            self.model_var.set("— enter API key first —")
+            self.model_status_label.configure(text="Save an API key to load available models.")
+
+    def _on_refresh_models_clicked(self):
+        provider = self.provider_var.get()
+        api_key = self.key_entry.get().strip() or self.summarizer.get_api_key(provider)
+        if not api_key:
+            self.model_status_label.configure(text="No API key found. Save one first.")
+            return
+        self._load_models_async(provider, api_key)
+
+    def _load_models_async(self, provider: str, api_key: str):
+        """Fetch live models in a background thread and update the dropdown."""
+        self.model_menu.configure(state="disabled", values=["Loading..."])
+        self.model_var.set("Loading...")
+        self.model_status_label.configure(text="Fetching available models...")
+        self.refresh_models_btn.configure(state="disabled")
+
+        current_model = self.summarizer.model_name
+
+        def worker():
+            try:
+                models = self.summarizer.fetch_live_models(provider, api_key)
+                self.after(0, self._apply_loaded_models, models, current_model)
+            except Exception as e:
+                self.after(0, self._apply_models_error, str(e))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_loaded_models(self, models: list, preferred: str):
+        self.refresh_models_btn.configure(state="normal")
+        if not models:
+            self.model_menu.configure(state="normal", values=["— no models found —"])
+            self.model_var.set("— no models found —")
+            self.model_status_label.configure(text="No supported models found for this provider.")
+            return
+        self.model_menu.configure(state="normal", values=models)
+        if preferred in models:
+            self.model_var.set(preferred)
+        else:
+            self.model_var.set(models[0])
+        self.model_status_label.configure(text=f"{len(models)} models available.")
+
+    def _apply_models_error(self, error: str):
+        self.refresh_models_btn.configure(state="normal")
+        self.model_menu.configure(state="normal", values=[self.summarizer.model_name])
+        self.model_var.set(self.summarizer.model_name)
+        msg = self._format_error(error)
+        self.model_status_label.configure(text=f"Could not fetch models: {msg}")
+
+    def _browse_transcript(self):
+        path = filedialog.askopenfilename(
+            title="Select Transcript",
+            initialdir=self.summarizer.transcriptions_dir,
+            filetypes=[("Markdown files", "*.md"), ("All files", "*.*")]
+        )
+        if path:
+            self.transcript_file_var.set(path)
 
     def _refresh_latest_transcript(self):
         latest = self.summarizer.get_latest_transcript()
@@ -194,24 +266,29 @@ class TranscriptionApp(ctk.CTk):
     def save_settings(self):
         provider = self.provider_var.get()
         api_key = self.key_entry.get().strip()
+        key_saved = False
         if api_key:
             self.summarizer.save_api_key(provider, api_key)
-            self.status_label.configure(text=f"Status: {provider} API Key Saved")
-        
+            key_saved = True
+
         new_model = self.model_var.get()
-        self.summarizer.model_name = new_model
-        
-        # Persist model selection to config.toml
-        try:
-            import toml
-            config = toml.load(self.summarizer.config_path)
-            if "summarization" not in config:
-                config["summarization"] = {}
-            config["summarization"]["model_name"] = new_model
-            with open(self.summarizer.config_path, "w") as f:
-                toml.dump(config, f)
-        except Exception as e:
-            print(f"Error saving model to config: {e}")
+        # Only persist if it looks like a real model name (not a placeholder)
+        if new_model and not new_model.startswith("—"):
+            self.summarizer.model_name = new_model
+            try:
+                import toml
+                config = toml.load(self.summarizer.config_path)
+                config.setdefault("summarization", {})["model_name"] = new_model
+                with open(self.summarizer.config_path, "w") as f:
+                    toml.dump(config, f)
+            except Exception as e:
+                print(f"Error saving model to config: {e}")
+
+        if key_saved:
+            self.status_label.configure(text=f"Status: {provider} API key saved — refreshing models...")
+            self._load_models_async(provider, api_key)
+        else:
+            self.status_label.configure(text="Status: Settings saved.")
 
     def generate_summary(self, file_path=None):
         target_file = file_path if file_path else self.transcript_file_var.get()
@@ -220,20 +297,50 @@ class TranscriptionApp(ctk.CTk):
             return
 
         self.sum_btn.configure(state="disabled")
-        self.sum_status_label.configure(text="Generating Summary... (Calling LLM)")
+        self.sum_status_label.configure(text="", text_color="gray")
+        self.sum_progress.grid()
+        self.sum_progress.start()
         
         custom_prompt = self.prompt_text.get("1.0", "end-1c")
         self.summarizer.summarize(target_file, custom_prompt, self._summary_callback)
 
     def _summary_callback(self, success, result):
+        # Called from a background thread — schedule UI updates on the main thread.
+        self.after(0, self._apply_summary_result, success, result)
+
+    def _apply_summary_result(self, success, result):
+        self.sum_progress.stop()
+        self.sum_progress.grid_remove()
         self.sum_btn.configure(state="normal")
         if success:
-            self.sum_status_label.configure(text=f"Summary saved: {os.path.basename(result)}")
-            # If we were auto-summarizing, also update the main status
-            self.status_label.configure(text=f"Status: Auto-summary saved to {os.path.basename(result)}")
+            name = os.path.basename(result)
+            self.sum_status_label.configure(text=f"Summary saved: {name}", text_color="green")
+            self.status_label.configure(text=f"Status: Summary saved — {name}")
         else:
-            self.sum_status_label.configure(text=f"Error: {result}")
-            self.status_label.configure(text=f"Error during auto-summarization: {result}")
+            msg = self._format_error(result)
+            self.sum_status_label.configure(text=f"Error: {msg}", text_color="#e74c3c")
+            self.status_label.configure(text="Status: Summary failed — see Summarization tab")
+
+    def _format_error(self, error_str: str) -> str:
+        """Return a short, human-readable error message from a raw exception string."""
+        s = error_str
+        if "NotFoundError" in s or "NOT_FOUND" in s or "404" in s:
+            return "Model not found (may be deprecated). Select another model in Settings."
+        if "AuthenticationError" in s or "UNAUTHENTICATED" in s or "401" in s:
+            return "Invalid API key. Check your key in Settings."
+        if "RateLimitError" in s or "RESOURCE_EXHAUSTED" in s or "429" in s:
+            return "Rate limit reached. Wait a moment and try again."
+        if "Timeout" in s or "timeout" in s:
+            return "Request timed out. Try a faster model or check your connection."
+        if "ConnectionError" in s or "Connection refused" in s:
+            return "Connection failed. Check your internet connection."
+        # Fallback: first non-boilerplate line, capped at 120 chars
+        skip = {"Traceback", "File ", "During ", "  "}
+        for line in s.split("\n"):
+            line = line.strip()
+            if line and not any(line.startswith(p) for p in skip):
+                return line[:120]
+        return "An unexpected error occurred."
 
     def _update_volume_indicator(self):
         if self.audio_engine.is_recording and not self.audio_engine.is_paused:
