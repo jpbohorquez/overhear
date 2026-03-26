@@ -22,5 +22,6 @@ Thumbs.db
 .vscode/
 .idea/
 
+.claude/
 .gemini/
 gha-creds-*.json

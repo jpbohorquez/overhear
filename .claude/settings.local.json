@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls -la /Users/juan_bohorquez/Documents/repos/overhear/*.py /Users/juan_bohorquez/Documents/repos/overhear/*.sh)"
-    ]
-  }
-}
