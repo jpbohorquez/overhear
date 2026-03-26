@@ -5,11 +5,11 @@ numpy==2.4.3
 customtkinter==5.2.2
 darkdetect==0.8.0
 
-# Transcription
+# Transcription & LLM
 faster-whisper==1.2.1
+litellm==1.82.3
 
 # Utilities
-python-dotenv==1.2.2
 requests==2.33.0
 toml==0.10.2
 # For Windows loopback support
