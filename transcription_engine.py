@@ -12,23 +12,38 @@ class TranscriptionEngine:
     Appends the results to a local file with timestamps.
     """
     def __init__(self, config_path="config.toml", device="cpu"):
-        # Load configuration
-        if os.path.exists(config_path):
-            config = toml.load(config_path)
-            model_size = config.get("transcription", {}).get("model_size", "base")
-            self.base_dir = config.get("transcription", {}).get("output_dir", "transcriptions")
-            self.sample_rate = config.get("audio", {}).get("sample_rate", 16000)
-        else:
-            model_size = "base"
-            self.base_dir = "transcriptions"
-            self.sample_rate = 16000
+        self.config_path = config_path
+        self.device = device
+        self._load_config()
             
         # Load the model (offline after initial download)
-        self.model = WhisperModel(model_size, device=device, compute_type="int8")
+        self.model = WhisperModel(self.model_size, device=self.device, compute_type="int8")
         self.is_running = False
         self.current_file = None
         self.start_time = None
         self.total_processed_seconds = 0.0
+
+    def _load_config(self):
+        # Load configuration
+        if os.path.exists(self.config_path):
+            config = toml.load(self.config_path)
+            self.model_size = config.get("transcription", {}).get("model_size", "base")
+            self.base_dir = config.get("transcription", {}).get("output_dir", "transcriptions")
+            self.sample_rate = config.get("audio", {}).get("sample_rate", 16000)
+        else:
+            self.model_size = "base"
+            self.base_dir = "transcriptions"
+            self.sample_rate = 16000
+
+    def update_config(self):
+        """Reloads configuration from disk."""
+        old_model_size = self.model_size
+        self._load_config()
+        
+        # If model size changed and we are not currently recording, reload model
+        if old_model_size != self.model_size and not self.is_running:
+            print(f"Reloading Whisper model with new size: {self.model_size}")
+            self.model = WhisperModel(self.model_size, device=self.device, compute_type="int8")
         
     def start(self, audio_queue, meeting_name):
         """Starts the transcription loop in a background thread."""

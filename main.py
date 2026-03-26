@@ -148,47 +148,107 @@ class TranscriptionApp(ctk.CTk):
     def _build_settings_tab(self):
         tab = self.tabview.tab("Settings")
         tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(0, weight=1)
+
+        # Use a scrollable frame for settings
+        self.settings_scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        self.settings_scroll.grid(row=0, column=0, sticky="nsew")
+        self.settings_scroll.grid_columnconfigure(0, weight=1)
+
+        # --- LLM Settings Section ---
+        llm_header = ctk.CTkLabel(self.settings_scroll, text="LLM Settings", font=("Inter", 16, "bold"))
+        llm_header.grid(row=0, column=0, padx=20, pady=(10, 10), sticky="w")
 
         # 1. API Key & Provider
-        self.provider_label = ctk.CTkLabel(tab, text="API Provider:", font=("Inter", 14, "bold"))
-        self.provider_label.grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
+        self.provider_label = ctk.CTkLabel(self.settings_scroll, text="API Provider:", font=("Inter", 14, "bold"))
+        self.provider_label.grid(row=1, column=0, padx=20, pady=(10, 5), sticky="w")
         
         self.provider_var = ctk.StringVar(value="GEMINI")
-        self.provider_menu = ctk.CTkOptionMenu(tab, values=["GEMINI", "OPENAI", "ANTHROPIC"], variable=self.provider_var, command=self._on_provider_change)
-        self.provider_menu.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="w")
+        self.provider_menu = ctk.CTkOptionMenu(self.settings_scroll, values=["GEMINI", "OPENAI", "ANTHROPIC"], variable=self.provider_var, command=self._on_provider_change)
+        self.provider_menu.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="w")
 
-        self.key_label = ctk.CTkLabel(tab, text="API Key:", font=("Inter", 14, "bold"))
-        self.key_label.grid(row=2, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.key_label = ctk.CTkLabel(self.settings_scroll, text="API Key:", font=("Inter", 14, "bold"))
+        self.key_label.grid(row=3, column=0, padx=20, pady=(10, 5), sticky="w")
         
-        self.key_entry = ctk.CTkEntry(tab, show="*", width=400)
-        self.key_entry.grid(row=3, column=0, padx=20, pady=(0, 10), sticky="ew")
+        self.key_entry = ctk.CTkEntry(self.settings_scroll, show="*", width=400)
+        self.key_entry.grid(row=4, column=0, padx=20, pady=(0, 10), sticky="ew")
         
         # 2. Model Selection
-        model_header = ctk.CTkFrame(tab, fg_color="transparent")
-        model_header.grid(row=4, column=0, padx=20, pady=(10, 0), sticky="ew")
-        model_header.grid_columnconfigure(0, weight=1)
+        model_header_frame = ctk.CTkFrame(self.settings_scroll, fg_color="transparent")
+        model_header_frame.grid(row=5, column=0, padx=20, pady=(10, 0), sticky="ew")
+        model_header_frame.grid_columnconfigure(0, weight=1)
 
-        self.model_label = ctk.CTkLabel(model_header, text="LLM Model:", font=("Inter", 14, "bold"))
+        self.model_label = ctk.CTkLabel(model_header_frame, text="LLM Model:", font=("Inter", 14, "bold"))
         self.model_label.grid(row=0, column=0, sticky="w")
 
         self.refresh_models_btn = ctk.CTkButton(
-            model_header, text="Refresh", width=80, height=26,
+            model_header_frame, text="Refresh", width=80, height=26,
             command=self._on_refresh_models_clicked
         )
         self.refresh_models_btn.grid(row=0, column=1, sticky="e")
 
         self.model_var = ctk.StringVar(value=self.summarizer.model_name)
-        self.model_menu = ctk.CTkOptionMenu(tab, values=[self.summarizer.model_name], variable=self.model_var, width=400)
-        self.model_menu.grid(row=5, column=0, padx=20, pady=(4, 0), sticky="ew")
+        self.model_menu = ctk.CTkOptionMenu(self.settings_scroll, values=[self.summarizer.model_name], variable=self.model_var, width=400)
+        self.model_menu.grid(row=6, column=0, padx=20, pady=(4, 0), sticky="ew")
 
-        self.model_status_label = ctk.CTkLabel(tab, text="", font=("Inter", 11), text_color="gray")
-        self.model_status_label.grid(row=6, column=0, padx=20, pady=(2, 10), sticky="w")
+        self.model_status_label = ctk.CTkLabel(self.settings_scroll, text="", font=("Inter", 11), text_color="gray")
+        self.model_status_label.grid(row=7, column=0, padx=20, pady=(2, 10), sticky="w")
+
+        # --- Transcription Settings Section ---
+        ctk.CTkLabel(self.settings_scroll, text="", font=("Inter", 1)).grid(row=8, column=0, pady=5) # Spacer
+        trans_header = ctk.CTkLabel(self.settings_scroll, text="Transcription Settings", font=("Inter", 16, "bold"))
+        trans_header.grid(row=9, column=0, padx=20, pady=(20, 10), sticky="w")
+
+        # 1. Model Size
+        self.whisper_label = ctk.CTkLabel(self.settings_scroll, text="Whisper Model Size:", font=("Inter", 14, "bold"))
+        self.whisper_label.grid(row=10, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.whisper_var = ctk.StringVar(value=self.summarizer.model_size)
+        self.whisper_menu = ctk.CTkOptionMenu(self.settings_scroll, values=["tiny", "base", "small", "medium", "large-v3"], variable=self.whisper_var)
+        self.whisper_menu.grid(row=11, column=0, padx=20, pady=(0, 10), sticky="w")
+
+        # 2. Transcriptions Dir
+        self.trans_dir_label = ctk.CTkLabel(self.settings_scroll, text="Transcriptions Directory:", font=("Inter", 14, "bold"))
+        self.trans_dir_label.grid(row=12, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.trans_dir_entry = ctk.CTkEntry(self.settings_scroll, width=400)
+        self.trans_dir_entry.insert(0, self.summarizer.transcriptions_dir)
+        self.trans_dir_entry.grid(row=13, column=0, padx=20, pady=(0, 10), sticky="ew")
+
+        # --- Audio Settings Section ---
+        ctk.CTkLabel(self.settings_scroll, text="", font=("Inter", 1)).grid(row=14, column=0, pady=5) # Spacer
+        audio_header = ctk.CTkLabel(self.settings_scroll, text="Audio Settings", font=("Inter", 16, "bold"))
+        audio_header.grid(row=15, column=0, padx=20, pady=(20, 10), sticky="w")
+
+        # 1. Sample Rate
+        self.sr_label = ctk.CTkLabel(self.settings_scroll, text="Sample Rate (Hz):", font=("Inter", 14, "bold"))
+        self.sr_label.grid(row=16, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.sr_entry = ctk.CTkEntry(self.settings_scroll, width=400)
+        self.sr_entry.insert(0, str(self.summarizer.sample_rate))
+        self.sr_entry.grid(row=17, column=0, padx=20, pady=(0, 10), sticky="ew")
+
+        # 2. Chunk Duration
+        self.chunk_label = ctk.CTkLabel(self.settings_scroll, text="Chunk Duration (seconds):", font=("Inter", 14, "bold"))
+        self.chunk_label.grid(row=18, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.chunk_entry = ctk.CTkEntry(self.settings_scroll, width=400)
+        self.chunk_entry.insert(0, str(self.summarizer.chunk_duration))
+        self.chunk_entry.grid(row=19, column=0, padx=20, pady=(0, 10), sticky="ew")
+
+        # --- Summarization Settings Section ---
+        ctk.CTkLabel(self.settings_scroll, text="", font=("Inter", 1)).grid(row=20, column=0, pady=5) # Spacer
+        sum_header = ctk.CTkLabel(self.settings_scroll, text="Summarization Settings", font=("Inter", 16, "bold"))
+        sum_header.grid(row=21, column=0, padx=20, pady=(20, 10), sticky="w")
+
+        # 1. Summaries Dir
+        self.sum_dir_label = ctk.CTkLabel(self.settings_scroll, text="Summaries Directory:", font=("Inter", 14, "bold"))
+        self.sum_dir_label.grid(row=22, column=0, padx=20, pady=(10, 5), sticky="w")
+        self.sum_dir_entry = ctk.CTkEntry(self.settings_scroll, width=400)
+        self.sum_dir_entry.insert(0, self.summarizer.summaries_dir)
+        self.sum_dir_entry.grid(row=23, column=0, padx=20, pady=(0, 10), sticky="ew")
+
+        # 3. Save Settings Button
+        self.save_settings_btn = ctk.CTkButton(self.settings_scroll, text="Save Settings", command=self.save_settings)
+        self.save_settings_btn.grid(row=24, column=0, padx=20, pady=(30, 40))
 
         self._on_provider_change("GEMINI")  # Load initial key and models
-
-        # 3. Save Settings
-        self.save_settings_btn = ctk.CTkButton(tab, text="Save Settings", command=self.save_settings)
-        self.save_settings_btn.grid(row=7, column=0, padx=20, pady=(10, 20))
 
     def _on_provider_change(self, provider):
         """Update key entry and trigger async model fetch when provider changes."""
@@ -271,24 +331,47 @@ class TranscriptionApp(ctk.CTk):
             self.summarizer.save_api_key(provider, api_key)
             key_saved = True
 
+        # Collect LLM model
         new_model = self.model_var.get()
-        # Only persist if it looks like a real model name (not a placeholder)
+        llm_settings = {}
         if new_model and not new_model.startswith("—"):
-            self.summarizer.model_name = new_model
-            try:
-                import toml
-                config = toml.load(self.summarizer.config_path)
-                config.setdefault("summarization", {})["model_name"] = new_model
-                with open(self.summarizer.config_path, "w") as f:
-                    toml.dump(config, f)
-            except Exception as e:
-                print(f"Error saving model to config: {e}")
+            llm_settings["model_name"] = new_model
 
-        if key_saved:
-            self.status_label.configure(text=f"Status: {provider} API key saved — refreshing models...")
-            self._load_models_async(provider, api_key)
-        else:
-            self.status_label.configure(text="Status: Settings saved.")
+        # Collect Transcription settings
+        transcription_settings = {
+            "model_size": self.whisper_var.get(),
+            "output_dir": self.trans_dir_entry.get().strip()
+        }
+
+        # Collect Audio settings
+        try:
+            audio_settings = {
+                "sample_rate": int(self.sr_entry.get().strip()),
+                "chunk_duration": int(self.chunk_entry.get().strip())
+            }
+        except ValueError:
+            self.status_label.configure(text="Error: Sample Rate and Chunk Duration must be integers.")
+            return
+
+        # Collect Summarization settings
+        summarization_settings = llm_settings
+        summarization_settings["summaries_dir"] = self.sum_dir_entry.get().strip()
+
+        # Save to config.toml
+        try:
+            self.summarizer.save_config(transcription_settings, audio_settings, summarization_settings)
+            
+            # Update engines
+            self.audio_engine.update_config()
+            self.transcriber.update_config()
+            
+            if key_saved:
+                self.status_label.configure(text=f"Status: {provider} API key and all settings saved.")
+                self._load_models_async(provider, api_key)
+            else:
+                self.status_label.configure(text="Status: All settings saved.")
+        except Exception as e:
+            self.status_label.configure(text=f"Error saving settings: {str(e)}")
 
     def generate_summary(self, file_path=None):
         target_file = file_path if file_path else self.transcript_file_var.get()

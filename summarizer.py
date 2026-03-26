@@ -20,24 +20,61 @@ class Summarizer:
     def __init__(self, config_path="config.toml", secrets_path=".secrets.toml"):
         self.config_path = config_path
         self.secrets_path = secrets_path
-        self._load_config()
+        self.load_config()
         self._load_secrets()
 
-    def _load_config(self):
+    def load_config(self):
         if os.path.exists(self.config_path):
             config = toml.load(self.config_path)
             sum_cfg = config.get("summarization", {})
             self.model_name = sum_cfg.get("model_name", "gemini/gemini-1.5-flash")
             self.system_prompt = sum_cfg.get("system_prompt", "Summarize this meeting transcript.")
             self.summaries_dir = sum_cfg.get("summaries_dir", "summaries")
-            self.transcriptions_dir = config.get("transcription", {}).get("output_dir", "transcriptions")
+            
+            trans_cfg = config.get("transcription", {})
+            self.transcriptions_dir = trans_cfg.get("output_dir", "transcriptions")
+            self.model_size = trans_cfg.get("model_size", "base")
+            
+            audio_cfg = config.get("audio", {})
+            self.sample_rate = audio_cfg.get("sample_rate", 16000)
+            self.chunk_duration = audio_cfg.get("chunk_duration", 30)
         else:
             self.model_name = "gemini/gemini-1.5-flash"
             self.system_prompt = "Summarize this meeting transcript."
             self.summaries_dir = "summaries"
             self.transcriptions_dir = "transcriptions"
+            self.model_size = "base"
+            self.sample_rate = 16000
+            self.chunk_duration = 30
 
         os.makedirs(self.summaries_dir, exist_ok=True)
+
+    def reload_config(self):
+        """Reloads configuration from disk."""
+        self.load_config()
+
+    def save_config(self, transcription_settings: Dict, audio_settings: Dict, summarization_settings: Dict):
+        """Persists all settings to config.toml."""
+        config = {}
+        if os.path.exists(self.config_path):
+            try:
+                config = toml.load(self.config_path)
+            except:
+                pass
+        
+        config.setdefault("transcription", {}).update(transcription_settings)
+        config.setdefault("audio", {}).update(audio_settings)
+        config.setdefault("summarization", {}).update(summarization_settings)
+
+        # Ensure directories exist
+        os.makedirs(config["transcription"].get("output_dir", "transcriptions"), exist_ok=True)
+        os.makedirs(config["summarization"].get("summaries_dir", "summaries"), exist_ok=True)
+
+        with open(self.config_path, "w") as f:
+            toml.dump(config, f)
+        
+        # Refresh current instance
+        self.load_config()
 
     def _load_secrets(self):
         """Loads .secrets.toml keys into environment variables for LiteLLM."""

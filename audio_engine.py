@@ -13,14 +13,8 @@ class AudioEngine:
     Streams audio in chunks to a queue for the transcription engine.
     """
     def __init__(self, config_path="config.toml"):
-        # Load configuration
-        if os.path.exists(config_path):
-            config = toml.load(config_path)
-            self.sample_rate = config.get("audio", {}).get("sample_rate", 16000)
-            self.chunk_duration = config.get("audio", {}).get("chunk_duration", 30)
-        else:
-            self.sample_rate = 16000
-            self.chunk_duration = 30
+        self.config_path = config_path
+        self._load_config()
             
         self.audio_queue = queue.Queue()
         self.is_recording = False
@@ -32,6 +26,20 @@ class AudioEngine:
         
         # Audio metrics (for UI indicator)
         self.current_volume = 0.0
+
+    def _load_config(self):
+        # Load configuration
+        if os.path.exists(self.config_path):
+            config = toml.load(self.config_path)
+            self.sample_rate = config.get("audio", {}).get("sample_rate", 16000)
+            self.chunk_duration = config.get("audio", {}).get("chunk_duration", 30)
+        else:
+            self.sample_rate = 16000
+            self.chunk_duration = 30
+
+    def update_config(self):
+        """Reloads configuration from disk."""
+        self._load_config()
 
     def get_input_devices(self):
         """Returns a list of dictionaries containing input device info."""
