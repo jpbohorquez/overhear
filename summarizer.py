@@ -232,7 +232,15 @@ class Summarizer:
 
             # Save File
             base_name = os.path.basename(transcript_path)
-            summary_path = os.path.join(self.summaries_dir, f"Summary_{base_name}")
+            
+            # Subfolder: YYYY-MM-DD
+            date_folder = datetime.now().strftime("%Y-%m-%d")
+            output_dir = os.path.join(self.summaries_dir, date_folder)
+            
+            # Create directories if they don't exist
+            os.makedirs(output_dir, exist_ok=True)
+            
+            summary_path = os.path.join(output_dir, f"Summary_{base_name}")
             
             with open(summary_path, "w", encoding="utf-8") as f:
                 f.write(f"# Summary of {base_name}\n")
